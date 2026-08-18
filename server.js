@@ -23,6 +23,15 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
 
+// log de diagnóstico: não mostra a senha, só confirma se as variáveis de
+// ambiente essenciais foram configuradas (ajuda a identificar problema de
+// deploy sem expor segredo nenhum nos logs).
+console.log(
+  'Iniciando servidor... DATABASE_URL configurada:', !!process.env.DATABASE_URL,
+  '| ADMIN_PASSWORD configurada:', !!process.env.ADMIN_PASSWORD,
+  '| PORT:', PORT
+);
+
 // senha única do administrador/dono da loja — configure isso como variável de
 // ambiente no Render (Environment -> Add Environment Variable -> ADMIN_PASSWORD).
 // Não deixe o valor padrão abaixo em produção.
@@ -454,6 +463,17 @@ async function iniciar() {
 }
 
 iniciar().catch(e => {
-  console.error('Falha ao iniciar o servidor (verifique DATABASE_URL):', e.message);
-  process.exit(1);
+  // escreve direto no stderr (síncrono) e só derruba o processo depois de um
+  // pequeno atraso — sem isso, o log podia se perder porque process.exit()
+  // encerra o processo antes do console.error terminar de ser escrito.
+  try {
+    process.stderr.write('Falha ao iniciar o servidor (verifique DATABASE_URL): ' + (e && e.stack ? e.stack : e) + '\n');
+  } catch (_) {}
+  setTimeout(() => process.exit(1), 500);
+});
+
+process.on('unhandledRejection', (e) => {
+  try {
+    process.stderr.write('Erro não tratado (unhandledRejection): ' + (e && e.stack ? e.stack : e) + '\n');
+  } catch (_) {}
 });

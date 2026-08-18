@@ -1,0 +1,17 @@
+{
+  "name": "rastreio-gps-entrega",
+  "version": "1.0.0",
+  "description": "Rastreio de entrega em tempo real (GPS do motoboy) - protótipo de teste",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "express": "^4.19.2",
+    "pg": "^8.23.0"
+  }
+}

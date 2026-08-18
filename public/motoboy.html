@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Entrega de Motoboy Lume</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#ffffff; --ink:#1f2430; --muted:#6b7280;
+    --orange:#ff6b35; --orange-dark:#e2551f; --green:#22c55e; --green-dark:#16a34a;
+    --line:#e5e7eb; --wa:#25d366; --red:#ef4444; --blue:#3b82f6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+  .topbar{background:var(--ink);color:#fff;padding:14px 16px 0;display:flex;align-items:center;gap:8px}
+  .topbar img{height:22px}
+  .topbar span{font-weight:700;font-size:14px}
+  .tabs{display:flex;gap:2px;overflow-x:auto;margin-top:12px}
+  .tab{flex-shrink:0;background:none;border:none;color:#cbd2e0;padding:10px 12px;font-size:12px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+  .tab.active{color:#fff;border-bottom-color:var(--orange)}
+  main{max-width:460px;margin:0 auto;padding:20px 16px 60px}
+  .card{background:var(--card);border-radius:16px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:16px}
+  h2{font-size:16px;margin:0 0 14px}
+  label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:12px 0 4px}
+  input,select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:#fafafa}
+  input:focus,select:focus{outline:2px solid var(--orange);background:#fff}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:13px 16px;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;margin-top:10px}
+  .btn-primary{background:var(--orange);color:#fff}
+  .btn-wa{background:var(--wa);color:#fff}
+  .btn-success{background:var(--green);color:#fff}
+  .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .btn-sm{width:auto;padding:8px 12px;font-size:12px;margin-top:0}
+  .filtro-btn{flex-shrink:0}
+  .filtro-btn.active{background:var(--orange);color:#fff;border-color:var(--orange)}
+  .row{display:flex;gap:8px}
+  .row>*{flex:1}
+  .muted{color:var(--muted);font-size:12px}
+  .hint{background:#fff7ed;border:1px solid #ffedd5;color:#9a3412;font-size:12px;padding:10px 12px;border-radius:10px;margin-bottom:16px}
+  .err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:12px;padding:10px 12px;border-radius:10px;margin-top:10px}
+  .linkbox{display:flex;gap:6px;align-items:center;background:#f8fafc;border:1px dashed var(--line);border-radius:10px;padding:8px 10px;font-size:12px;word-break:break-all;color:#334155;margin-bottom:10px}
+  .copybtn{flex-shrink:0;border:none;background:var(--ink);color:#fff;border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer}
+  .gpsbox{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;font-size:12px;color:#166534;margin-top:10px}
+  .gpsbox.off{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+  .success{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;padding:18px;text-align:center}
+  .success .big{font-size:38px}
+  .item{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .item p{margin:0}
+  .pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:#dbeafe;color:#1e40af;flex-shrink:0}
+  .empty{text-align:center;color:var(--muted);padding:30px 10px;font-size:13px}
+  .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+  .metric{background:#f8fafc;border-radius:12px;padding:12px 10px;text-align:center}
+  .metric .val{font-size:18px;font-weight:800}
+  .metric .lbl{font-size:11px;color:var(--muted)}
+  .breakrow{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-top:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{text-align:left;color:var(--muted);font-weight:600;padding:6px 4px}
+  td{padding:8px 4px;border-top:1px solid var(--line)}
+  .view{display:none}
+  .view.active{display:block}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <img src="/logo-lume.svg" alt="Lume">
+  <span>Sistema de Entrega de Motoboy Lume</span>
+</div>
+<div class="tabs" style="padding:0 16px;background:#1f2430">
+  <button class="tab active" data-view="novo">📦 Novo pedido</button>
+  <button class="tab" data-view="rota">🛣️ Em rota</button>
+  <button class="tab" data-view="historico">🕓 Histórico</button>
+  <button class="tab" data-view="valor">💰 Valor de entregas</button>
+  <button class="tab" data-view="parceiro">🧑‍✈️ Motoboy parceiro</button>
+</div>
+
+<main>
+
+  <!-- ===== NOVO PEDIDO ===== -->
+  <section id="view-novo" class="view active">
+    <div class="hint">Cadastre aqui todos os pedidos que você está levando. Eles ficam na fila da aba "Em rota" — o envio pro cliente e o início do GPS só acontecem quando você apertar o play de cada um lá.</div>
+
+    <div class="card" id="formCard">
+      <h2>📦 Novo pedido</h2>
+      <div id="formOk"></div>
+      <label>Motoboy responsável</label>
+      <select id="inMotoboy"><option value="">Selecione...</option></select>
+      <label>Número do pedido</label>
+      <input id="inPedido" placeholder="Ex: 1042">
+      <label>Nome da cliente</label>
+      <input id="inNome" placeholder="Ex: Ana Souza">
+      <label>WhatsApp da cliente (com DDD)</label>
+      <input id="inTelefone" placeholder="Ex: 11 91234-5678">
+      <label>Rua</label>
+      <input id="inRua" placeholder="Ex: Rua das Flores">
+      <div class="row">
+        <div><label>Número</label><input id="inNumero" placeholder="Ex: 245"></div>
+        <div><label>Bairro</label><input id="inBairro" placeholder="Ex: Jardim América"></div>
+      </div>
+      <div class="row">
+        <div><label>Cidade</label><input id="inCidade" placeholder="Ex: Recife"></div>
+        <div><label>Complemento</label><input id="inComplemento" placeholder="Ex: Apto 32"></div>
+      </div>
+      <label>Ponto de referência</label>
+      <input id="inReferencia" placeholder="Ex: Portão azul">
+      <div class="row">
+        <div><label>Valor da entrega</label>
+          <select id="inValor">
+            <option value="10">R$ 10,00</option>
+            <option value="15">R$ 15,00</option>
+            <option value="20">R$ 20,00</option>
+            <option value="25">R$ 25,00</option>
+            <option value="30">R$ 30,00</option>
+            <option value="35">R$ 35,00</option>
+          </select>
+        </div>
+        <div><label>Forma de pagamento</label>
+          <select id="inPagamento">
+            <option value="Pagamento site">Pagamento site</option>
+            <option value="Link de pagamento">Link de pagamento</option>
+            <option value="Pix">Pix</option>
+            <option value="Cartão na entrega">Cartão na entrega</option>
+            <option value="Dinheiro na entrega">Dinheiro na entrega</option>
+          </select>
+        </div>
+      </div>
+      <label>Observação de horário (opcional)</label>
+      <input id="inObsHorario" placeholder="Ex: a partir das 14h / até às 14h">
+      <button class="btn btn-primary" id="btnSair">➕ Cadastrar pedido</button>
+      <div id="formErr"></div>
+    </div>
+  </section>
+
+  <!-- ===== PEDIDOS EM ROTA ===== -->
+  <section id="view-rota" class="view">
+    <div class="hint">Esta página envia sua localização de verdade enquanto estiver aberta. Mantenha-a em primeiro plano durante a entrega para o rastreio funcionar sem interrupção.</div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h2 style="margin:0">🛣️ Pedidos em rota</h2>
+        <button class="btn btn-ghost btn-sm" onclick="carregarRota()">🔄 Atualizar</button>
+      </div>
+      <div id="listaRota"><div class="empty">Carregando...</div></div>
+    </div>
+  </section>
+
+  <!-- ===== HISTÓRICO ===== -->
+  <section id="view-historico" class="view">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h2 style="margin:0">🕓 Histórico de pedidos</h2>
+        <button class="btn btn-ghost btn-sm" onclick="carregarHistorico()">🔄 Atualizar</button>
+      </div>
+      <div id="listaHistorico"><div class="empty">Carregando...</div></div>
+    </div>
+  </section>
+
+  <!-- ===== VALOR DE ENTREGAS ===== -->
+  <section id="view-valor" class="view">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h2 style="margin:0">💰 Valor de entregas</h2>
+        <button class="btn btn-ghost btn-sm" onclick="carregarRelatorio()">🔄 Atualizar</button>
+      </div>
+
+      <div id="relatorioLogin">
+        <p class="muted" style="margin:0 0 10px">🔒 Digite a senha do administrador (pra ver tudo) ou a sua senha de motoboy (pra ver só suas entregas).</p>
+        <input type="password" id="inSenhaRelatorio" placeholder="Senha">
+        <button class="btn btn-primary" id="btnEntrarRelatorio">Entrar</button>
+        <div id="relatorioLoginErr"></div>
+      </div>
+
+      <div id="relatorioConteudo" style="display:none">
+        <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:12px" id="filtroPreset">
+          <button class="btn btn-ghost btn-sm filtro-btn active" data-preset="hoje">Hoje</button>
+          <button class="btn btn-ghost btn-sm filtro-btn" data-preset="ontem">Ontem</button>
+          <button class="btn btn-ghost btn-sm filtro-btn" data-preset="semana">7 dias</button>
+          <button class="btn btn-ghost btn-sm filtro-btn" data-preset="mes">Este mês</button>
+          <button class="btn btn-ghost btn-sm filtro-btn" data-preset="custom">Período</button>
+        </div>
+        <div class="row" id="filtroCustom" style="display:none;margin-bottom:12px">
+          <div><label style="margin:0 0 4px">De</label><input type="date" id="filtroDe"></div>
+          <div><label style="margin:0 0 4px">Até</label><input type="date" id="filtroAte"></div>
+          <div style="flex:0 0 auto;display:flex;align-items:flex-end"><button class="btn btn-primary btn-sm" style="margin:0" onclick="aplicarFiltroCustom()">Aplicar</button></div>
+        </div>
+
+        <div id="relatorioBox"><div class="empty">Carregando...</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== MOTOBOY PARCEIRO ===== -->
+  <section id="view-parceiro" class="view">
+    <div class="card">
+      <h2>🧑‍✈️ Cadastrar motoboy parceiro</h2>
+      <label>Nome do motoboy</label>
+      <input id="inMotoNome" placeholder="Ex: Carlos Silva">
+      <label>WhatsApp</label>
+      <input id="inMotoTelefone" placeholder="Ex: 11 90000-0001">
+      <label>Placa da moto</label>
+      <input id="inMotoPlaca" placeholder="Ex: ABC1D23">
+      <label>Senha do motoboy</label>
+      <input type="password" id="inMotoSenha" placeholder="Ele vai usar essa senha pra ver os valores dele">
+      <label>Senha do administrador</label>
+      <input type="password" id="inMotoAdminSenha" placeholder="Sua senha de admin, pra autorizar o cadastro">
+      <button class="btn btn-primary" id="btnCadastrarMoto">Cadastrar motoboy</button>
+      <div id="motoErr"></div>
+    </div>
+    <div class="card">
+      <h2>Motoboys cadastrados</h2>
+      <div id="listaMotoboys"><div class="empty">Carregando...</div></div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+let code = null, telefone = null, nome = null, watchId = null, pingCount = 0;
+
+// formas de pagamento em que o motoboy recebe o dinheiro/cartão na hora — exigem
+// a confirmação "recebi o valor" antes de finalizar (mesma lista do server.js).
+const FORMAS_COBRADAS_NA_ENTREGA = ['Cartão na entrega', 'Dinheiro na entrega'];
+
+function normalizePhone(v){
+  let digits = (v||'').replace(/\D/g,'');
+  if(digits.length>0 && digits.length<=11) digits = '55'+digits;
+  return digits;
+}
+
+// ---------------- navegação entre abas ----------------
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    btn.classList.add('active');
+    const view = btn.dataset.view;
+    document.getElementById('view-' + view).classList.add('active');
+    if(view === 'rota') carregarRota();
+    if(view === 'historico') carregarHistorico();
+    if(view === 'valor') abrirAbaValor();
+    if(view === 'parceiro') carregarMotoboys();
+  });
+});
+
+// ---------------- motoboys (usado no select de novo pedido e na aba parceiro) ----------------
+async function carregarMotoboysSelect(){
+  try{
+    const resp = await fetch('/api/motoboys');
+    const lista = await resp.json();
+    const sel = document.getElementById('inMotoboy');
+    const atual = sel.value;
+    sel.innerHTML = '<option value="">Selecione...</option>' +
+      lista.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
+    if(atual) sel.value = atual;
+  }catch(e){ /* select fica só com "Selecione..." */ }
+}
+
+async function carregarMotoboys(){
+  const box = document.getElementById('listaMotoboys');
+  try{
+    const resp = await fetch('/api/motoboys');
+    const lista = await resp.json();
+    if(!lista.length){ box.innerHTML = '<div class="empty">Nenhum motoboy cadastrado ainda.</div>'; return; }
+    box.innerHTML = lista.map(m => `
+      <div class="item">
+        <div><p style="font-weight:600;font-size:14px">${m.nome}</p><p class="muted">${m.telefone}${m.placa? ' · '+m.placa:''}</p></div>
+      </div>`).join('');
+  }catch(e){
+    box.innerHTML = '<div class="empty">Não consegui carregar os motoboys.</div>';
+  }
+}
+
+document.getElementById('btnCadastrarMoto').addEventListener('click', async () => {
+  const nomeM = document.getElementById('inMotoNome').value.trim();
+  const telM = document.getElementById('inMotoTelefone').value.trim();
+  const placaM = document.getElementById('inMotoPlaca').value.trim();
+  const senhaM = document.getElementById('inMotoSenha').value;
+  const adminSenhaM = document.getElementById('inMotoAdminSenha').value;
+  const errBox = document.getElementById('motoErr');
+  errBox.innerHTML = '';
+  if(!nomeM || !telM){
+    errBox.innerHTML = '<div class="err">Preencha nome e WhatsApp do motoboy.</div>';
+    return;
+  }
+  if(!senhaM || senhaM.length < 4){
+    errBox.innerHTML = '<div class="err">Defina uma senha de pelo menos 4 caracteres pro motoboy.</div>';
+    return;
+  }
+  if(!adminSenhaM){
+    errBox.innerHTML = '<div class="err">Digite a senha do administrador pra autorizar o cadastro.</div>';
+    return;
+  }
+  try{
+    const resp = await fetch('/api/motoboys', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ nome: nomeM, telefone: telM, placa: placaM, senha: senhaM, adminPassword: adminSenhaM })
+    });
+    if(!resp.ok){ const d = await resp.json(); errBox.innerHTML = '<div class="err">'+(d.erro||'Erro ao cadastrar.')+'</div>'; return; }
+    document.getElementById('inMotoNome').value = '';
+    document.getElementById('inMotoTelefone').value = '';
+    document.getElementById('inMotoPlaca').value = '';
+    document.getElementById('inMotoSenha').value = '';
+    document.getElementById('inMotoAdminSenha').value = '';
+    carregarMotoboys();
+    carregarMotoboysSelect();
+  }catch(e){
+    errBox.innerHTML = '<div class="err">Não consegui falar com o servidor.</div>';
+  }
+});
+
+// ---------------- pedidos em rota ----------------
+function tempoDecorrido(ts){
+  if(!ts) return '';
+  const min = Math.round((Date.now() - ts) / 60000);
+  if(min < 1) return 'agora mesmo';
+  if(min < 60) return 'há ' + min + ' min';
+  return 'há ' + Math.round(min/60) + 'h';
+}
+
+let pedidosRotaCache = {}; // code -> dados do pedido (pra achar rápido ao apertar o play)
+
+async function carregarRota(){
+  const box = document.getElementById('listaRota');
+  try{
+    const resp = await fetch('/api/pedidos?status=em_rota');
+    const lista = await resp.json();
+    pedidosRotaCache = {};
+    lista.forEach(p => pedidosRotaCache[p.code] = p);
+
+    if(!lista.length){ box.innerHTML = '<div class="empty">Nenhum pedido na fila. Cadastre um na aba "Novo pedido".</div>'; return; }
+
+    box.innerHTML = lista.map(p => renderItemRota(p)).join('');
+  }catch(e){
+    box.innerHTML = '<div class="empty">Não consegui carregar os pedidos.</div>';
+  }
+}
+
+function renderItemRota(p){
+  const ehAtivoAqui = (p.code === activeCode);
+  let controle;
+  if(p.status === 'pendente'){
+    const bloqueado = activeCode && activeCode !== p.code;
+    controle = bloqueado
+      ? `<button class="playbtn" disabled style="opacity:.35;cursor:not-allowed;flex-shrink:0;width:40px;height:40px;border-radius:50%;border:none;background:var(--orange);color:#fff;font-size:16px">▶</button>`
+      : `<button class="playbtn" onclick="iniciarEntrega('${p.code}')" style="flex-shrink:0;width:40px;height:40px;border-radius:50%;border:none;background:var(--orange);color:#fff;font-size:16px;cursor:pointer">▶</button>`;
+  } else {
+    controle = ehAtivoAqui
+      ? `<span class="pill" style="background:#fee2e2;color:#991b1b">🔴 Ativo aqui</span>`
+      : `<span class="pill">🔴 Em rota</span>`;
+  }
+
+  const badgeHorario = p.obsHorario ? `
+    <p style="margin:6px 0 0;font-size:12px;font-weight:700;color:#991b1b;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:5px 9px;display:inline-block">⏰ ${p.obsHorario}</p>` : '';
+
+  const cabecalho = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div><p style="font-weight:600;font-size:14px">Pedido #${p.code} · ${p.nome}</p>
+        <p class="muted">${p.motoboyNome||'Sem motoboy'} · R$ ${p.valorEntrega!=null?Number(p.valorEntrega).toFixed(2):'-'}${p.formaPagamento? ' · '+p.formaPagamento:''}</p>
+        <p class="muted">${p.enderecoTexto}${p.status==='pendente'? ' · cadastrado '+tempoDecorrido(p.createdAt) : ' · saiu '+tempoDecorrido(p.iniciadoEm)}</p>
+        ${badgeHorario}
+      </div>
+      ${controle}
+    </div>`;
+
+  if(!ehAtivoAqui) return `<div class="item" style="flex-direction:column;align-items:stretch">${cabecalho}</div>`;
+
+  const exigeConfirmacaoRecebimento = FORMAS_COBRADAS_NA_ENTREGA.includes(p.formaPagamento);
+  const blocoConfirmacao = exigeConfirmacaoRecebimento ? `
+    <div class="hint" style="margin-top:10px;margin-bottom:0">
+      <label style="display:flex;align-items:center;gap:8px;margin:0;color:#9a3412;font-weight:700;cursor:pointer">
+        <input type="checkbox" id="chkRecebido" style="width:auto;margin:0">
+        Recebido o valor total do pedido ${p.formaPagamento === 'Dinheiro na entrega' ? 'em dinheiro' : 'no cartão'}
+      </label>
+    </div>` : '';
+
+  return `<div class="item" style="flex-direction:column;align-items:stretch;border-color:var(--orange)">
+    ${cabecalho}
+    <div class="linkbox" style="margin-top:10px">
+      <span id="linkTexto"></span>
+      <button class="copybtn" onclick="copiarLink()">Copiar</button>
+    </div>
+    <button class="btn btn-wa" onclick="enviarLinkWhats()">📤 Reenviar link ao cliente (WhatsApp)</button>
+    <div class="gpsbox" id="gpsStatus">📡 Aguardando permissão de localização...</div>
+    ${blocoConfirmacao}
+    <label style="margin-top:10px">Observação (opcional)</label>
+    <input id="obsEntrega" placeholder="Ex: deixado na portaria com o zelador">
+    <button class="btn btn-success" onclick="entregarAtivo()">✅ Marcar como entregue</button>
+  </div>`;
+}
+
+// ---------------- histórico ----------------
+async function carregarHistorico(){
+  const box = document.getElementById('listaHistorico');
+  try{
+    const resp = await fetch('/api/pedidos?status=entregue');
+    const lista = await resp.json();
+    if(!lista.length){ box.innerHTML = '<div class="empty">Nenhum pedido finalizado ainda.</div>'; return; }
+    box.innerHTML = `<table>
+      <tr><th>Pedido</th><th>Cliente</th><th>Motoboy</th><th>Pagamento</th><th style="text-align:right">Valor</th></tr>
+      ${lista.map(p => `<tr>
+        <td>#${p.code}</td><td>${p.nome}</td><td>${p.motoboyNome||'-'}</td>
+        <td>${p.formaPagamento||'-'}${p.valorRecebido? ' ✅':''}</td>
+        <td style="text-align:right">${p.valorEntrega!=null? 'R$ '+Number(p.valorEntrega).toFixed(2):'-'}</td>
+      </tr>${p.obs ? `<tr><td colspan="5" class="muted" style="padding-top:0">📝 ${p.obs}</td></tr>` : ''}`).join('')}
+    </table>`;
+  }catch(e){
+    box.innerHTML = '<div class="empty">Não consegui carregar o histórico.</div>';
+  }
+}
+
+// ---------------- relatório de valores ----------------
+function fmtReais(v){ return 'R$ ' + Number(v||0).toFixed(2); }
+
+function dataLocalISO(d){
+  const ano = d.getFullYear(), mes = String(d.getMonth()+1).padStart(2,'0'), dia = String(d.getDate()).padStart(2,'0');
+  return `${ano}-${mes}-${dia}`;
+}
+function fmtDataBR(iso){
+  if(!iso) return '';
+  const [a,m,d] = iso.split('-');
+  return d+'/'+m+'/'+a;
+}
+
+let filtroPreset = 'hoje';
+let senhaRelatorio = null; // só fica na memória da página (some se recarregar) — nunca salva em disco
+
+function abrirAbaValor(){
+  if(senhaRelatorio){
+    document.getElementById('relatorioLogin').style.display = 'none';
+    document.getElementById('relatorioConteudo').style.display = 'block';
+    carregarRelatorio();
+  } else {
+    document.getElementById('relatorioLogin').style.display = 'block';
+    document.getElementById('relatorioConteudo').style.display = 'none';
+  }
+}
+
+document.getElementById('btnEntrarRelatorio').addEventListener('click', async () => {
+  const senha = document.getElementById('inSenhaRelatorio').value;
+  const errBox = document.getElementById('relatorioLoginErr');
+  errBox.innerHTML = '';
+  if(!senha){ errBox.innerHTML = '<div class="err">Digite uma senha.</div>'; return; }
+  senhaRelatorio = senha;
+  const ok = await carregarRelatorio();
+  if(ok){
+    document.getElementById('relatorioLogin').style.display = 'none';
+    document.getElementById('relatorioConteudo').style.display = 'block';
+    document.getElementById('inSenhaRelatorio').value = '';
+  } else {
+    senhaRelatorio = null;
+    errBox.innerHTML = '<div class="err">Senha incorreta.</div>';
+  }
+});
+
+function intervaloDoPreset(preset){
+  const hoje = new Date();
+  if(preset === 'hoje') return { de: dataLocalISO(hoje), ate: dataLocalISO(hoje) };
+  if(preset === 'ontem'){
+    const ontem = new Date(hoje); ontem.setDate(ontem.getDate()-1);
+    return { de: dataLocalISO(ontem), ate: dataLocalISO(ontem) };
+  }
+  if(preset === 'semana'){
+    const seteAtras = new Date(hoje); seteAtras.setDate(seteAtras.getDate()-6);
+    return { de: dataLocalISO(seteAtras), ate: dataLocalISO(hoje) };
+  }
+  if(preset === 'mes'){
+    const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    return { de: dataLocalISO(inicioMes), ate: dataLocalISO(hoje) };
+  }
+  return null; // 'custom' usa os campos de data
+}
+
+document.querySelectorAll('.filtro-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filtroPreset = btn.dataset.preset;
+    document.getElementById('filtroCustom').style.display = (filtroPreset === 'custom') ? 'flex' : 'none';
+    if(filtroPreset !== 'custom') carregarRelatorio();
+  });
+});
+
+function aplicarFiltroCustom(){
+  const de = document.getElementById('filtroDe').value;
+  const ate = document.getElementById('filtroAte').value;
+  if(!de || !ate){ alert('Preencha as duas datas.'); return; }
+  carregarRelatorio();
+}
+
+async function carregarRelatorio(){
+  if(!senhaRelatorio){ abrirAbaValor(); return false; }
+
+  const box = document.getElementById('relatorioBox');
+  let de, ate;
+  if(filtroPreset === 'custom'){
+    de = document.getElementById('filtroDe').value;
+    ate = document.getElementById('filtroAte').value;
+    if(!de || !ate){ box.innerHTML = '<div class="empty">Escolha as duas datas e clique em "Aplicar".</div>'; return true; }
+  } else {
+    const iv = intervaloDoPreset(filtroPreset);
+    de = iv.de; ate = iv.ate;
+  }
+
+  try{
+    const resp = await fetch('/api/relatorio', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ senha: senhaRelatorio, de, ate })
+    });
+    if(resp.status === 401){
+      // senha ficou inválida (ex: trocada) — desloga e volta pra tela de login
+      senhaRelatorio = null;
+      abrirAbaValor();
+      return false;
+    }
+    const r = await resp.json();
+    const p = r.periodo || {};
+    const motoboyRows = Object.entries(p.porMotoboy||{}).map(([k,v]) => `<div class="breakrow"><span>${k}</span><span style="font-weight:600">${fmtReais(v)}</span></div>`).join('') || '<div class="muted">Sem entregas nesse período.</div>';
+    const pagRows = Object.entries(p.porFormaPagamento||{}).map(([k,v]) => `<div class="breakrow"><span>${k}</span><span style="font-weight:600">${fmtReais(v)}</span></div>`).join('') || '<div class="muted">Sem entregas nesse período.</div>';
+    const periodoLabel = (p.de === p.ate) ? fmtDataBR(p.de) : (fmtDataBR(p.de) + ' até ' + fmtDataBR(p.ate));
+    const quemVeAviso = r.tipoAcesso === 'motoboy'
+      ? `<p class="muted" style="margin:0 0 10px">👤 Mostrando só as entregas de <b>${r.motoboyNome}</b>.</p>`
+      : `<p class="muted" style="margin:0 0 10px">🔓 Acesso de administrador — mostrando todos os motoboys.</p>`;
+    box.innerHTML = `
+      ${quemVeAviso}
+      <div class="metrics" style="grid-template-columns:1fr 1fr">
+        <div class="metric"><div class="val">${fmtReais(p.total)}</div><div class="lbl">Total · ${periodoLabel}</div></div>
+        <div class="metric"><div class="val">${p.quantidade||0}</div><div class="lbl">Entregas no período</div></div>
+      </div>
+      <p class="muted" style="margin:0 0 4px">Por motoboy</p>
+      ${motoboyRows}
+      <p class="muted" style="margin:16px 0 4px">Por forma de pagamento</p>
+      ${pagRows}`;
+    return true;
+  }catch(e){
+    box.innerHTML = '<div class="empty">Não consegui carregar o relatório.</div>';
+    return true;
+  }
+}
+
+// ---------------- novo pedido / GPS / entrega (mesma lógica de antes) ----------------
+document.getElementById('btnSair').addEventListener('click', async () => {
+  const motoboyId = document.getElementById('inMotoboy').value;
+  const pedido = document.getElementById('inPedido').value.trim();
+  nome = document.getElementById('inNome').value.trim();
+  const tel = document.getElementById('inTelefone').value.trim();
+  const rua = document.getElementById('inRua').value.trim();
+  const numero = document.getElementById('inNumero').value.trim();
+  const bairro = document.getElementById('inBairro').value.trim();
+  const cidade = document.getElementById('inCidade').value.trim();
+  const complemento = document.getElementById('inComplemento').value.trim();
+  const referencia = document.getElementById('inReferencia').value.trim();
+  const valorEntrega = document.getElementById('inValor').value.trim().replace(',', '.');
+  const formaPagamento = document.getElementById('inPagamento').value;
+  const obsHorario = document.getElementById('inObsHorario').value.trim();
+  const errBox = document.getElementById('formErr');
+  errBox.innerHTML = '';
+
+  if(!motoboyId){
+    errBox.innerHTML = '<div class="err">Selecione o motoboy responsável (cadastre um na aba "Motoboy parceiro" se ainda não tiver nenhum).</div>';
+    return;
+  }
+  if(!pedido || !nome || !tel || !rua || !numero || !bairro){
+    errBox.innerHTML = '<div class="err">Preencha número do pedido, nome, WhatsApp, rua, número e bairro.</div>';
+    return;
+  }
+  let resp, data;
+  try{
+    resp = await fetch('/api/pedidos', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ pedido, nome, telefone: tel, rua, numero, bairro, cidade, complemento, referencia, motoboyId, valorEntrega, formaPagamento, obsHorario })
+    });
+    data = await resp.json();
+  }catch(e){
+    errBox.innerHTML = '<div class="err">Não consegui falar com o servidor. Verifique sua conexão.</div>';
+    return;
+  }
+  if(!resp.ok){
+    errBox.innerHTML = '<div class="err">'+(data.erro||'Erro ao criar pedido.')+'</div>';
+    return;
+  }
+
+  // cadastro concluído: NÃO envia whatsapp nem começa GPS ainda — isso só
+  // acontece quando o motoboy apertar o play na aba "Em rota". Aqui a gente
+  // só limpa o formulário (mantendo o motoboy selecionado) pra ele já
+  // cadastrar o próximo pedido rapidinho.
+  const motoboySelecionado = document.getElementById('inMotoboy').value;
+  ['inPedido','inNome','inTelefone','inRua','inNumero','inBairro','inCidade','inComplemento','inReferencia','inObsHorario'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('inMotoboy').value = motoboySelecionado;
+
+  const okBox = document.getElementById('formOk');
+  okBox.innerHTML = '<div class="gpsbox">✅ Pedido #'+data.code+' cadastrado e adicionado à fila. Vá na aba "Em rota" pra iniciar quando for sair com ele.</div>';
+  setTimeout(() => { okBox.innerHTML = ''; }, 6000);
+});
+
+// ---------------- iniciar entrega (o "play" da fila) ----------------
+let activeCode = null;
+let gpsErrosSeguidos = 0;
+let usandoAltaPrecisao = true;
+
+async function iniciarEntrega(codeParaIniciar){
+  if(activeCode && activeCode !== codeParaIniciar){
+    alert('Finalize a entrega do pedido #' + activeCode + ' antes de iniciar outra (marque como entregue primeiro).');
+    return;
+  }
+  const dados = pedidosRotaCache[codeParaIniciar];
+  if(!dados) return;
+
+  try{
+    const resp = await fetch('/api/pedidos/' + encodeURIComponent(codeParaIniciar) + '/iniciar', { method: 'POST' });
+    if(!resp.ok){ alert('Não consegui iniciar esse pedido. Tente de novo.'); return; }
+  }catch(e){
+    alert('Não consegui falar com o servidor. Verifique sua conexão.');
+    return;
+  }
+
+  activeCode = codeParaIniciar;
+  code = codeParaIniciar;
+  nome = dados.nome;
+  telefone = normalizePhone(dados.telefone);
+
+  await carregarRota(); // re-renderiza mostrando os controles do pedido ativo
+
+  const link = location.origin + '/cliente.html?code=' + encodeURIComponent(code);
+  const linkEl = document.getElementById('linkTexto');
+  if(linkEl) linkEl.textContent = link;
+
+  iniciarGPS();
+  enviarLinkWhats();
+}
+
+function iniciarGPS(){
+  const gpsBox = document.getElementById('gpsStatus');
+  if(!('geolocation' in navigator)){
+    gpsBox.className = 'gpsbox off';
+    gpsBox.textContent = '⚠️ Este navegador não suporta GPS.';
+    return;
+  }
+  gpsErrosSeguidos = 0;
+  usandoAltaPrecisao = true;
+  observarPosicao();
+}
+
+function observarPosicao(){
+  const gpsBox = document.getElementById('gpsStatus');
+  if(watchId !== null) navigator.geolocation.clearWatch(watchId);
+
+  watchId = navigator.geolocation.watchPosition(async (pos) => {
+    gpsErrosSeguidos = 0;
+    pingCount++;
+    const { latitude, longitude, accuracy } = pos.coords;
+    gpsBox.className = 'gpsbox';
+    gpsBox.textContent = '📡 Localização ativa · última atualização agora · precisão ~' + Math.round(accuracy) + 'm · ' + pingCount + ' envio(s)';
+    try{
+      await fetch('/api/pedidos/' + encodeURIComponent(code) + '/localizacao', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ lat: latitude, lng: longitude, accuracy })
+      });
+    }catch(e){ /* tenta de novo no próximo ping, sem interromper o GPS */ }
+  }, (err) => {
+    if(err.code === err.PERMISSION_DENIED){
+      gpsBox.className = 'gpsbox off';
+      gpsBox.textContent = '⚠️ Permissão de localização negada. Ative o GPS nas configurações do navegador para o rastreio funcionar.';
+      return;
+    }
+    gpsErrosSeguidos++;
+    gpsBox.className = 'gpsbox';
+    gpsBox.textContent = '🔎 Procurando sinal de localização... (pode demorar mais em ambientes fechados — continua tentando automaticamente)';
+    if(gpsErrosSeguidos >= 3 && usandoAltaPrecisao){
+      usandoAltaPrecisao = false;
+      observarPosicao();
+    }
+  }, {
+    enableHighAccuracy: usandoAltaPrecisao,
+    maximumAge: 10000,
+    timeout: usandoAltaPrecisao ? 25000 : 20000
+  });
+}
+
+function copiarLink(){
+  const txt = document.getElementById('linkTexto').textContent;
+  const ta = document.createElement('textarea');
+  ta.value = txt; document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(ta);
+}
+
+function enviarLinkWhats(){
+  const link = location.origin + '/cliente.html?code=' + encodeURIComponent(code);
+  const msg = 'Oi ' + nome + '! 🛵 Seu pedido acabou de sair para entrega.\n\nAcompanhe em tempo real: ' + link + '\n\nQualquer coisa, é só chamar por aqui!\n\nPedido #' + code;
+  window.open('https://wa.me/' + telefone + '?text=' + encodeURIComponent(msg), '_blank');
+}
+
+async function entregarAtivo(){
+  const dadosAtivo = pedidosRotaCache[code] || {};
+  const exigeConfirmacao = FORMAS_COBRADAS_NA_ENTREGA.includes(dadosAtivo.formaPagamento);
+  const chk = document.getElementById('chkRecebido');
+  if(exigeConfirmacao && (!chk || !chk.checked)){
+    alert('Confirme que recebeu o valor total do pedido (' + dadosAtivo.formaPagamento + ') antes de finalizar.');
+    return;
+  }
+  const obsEl = document.getElementById('obsEntrega');
+  const obs = obsEl ? obsEl.value.trim() : '';
+
+  if(watchId !== null) navigator.geolocation.clearWatch(watchId);
+  try{
+    const resp = await fetch('/api/pedidos/' + encodeURIComponent(code) + '/entregar', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ valorRecebido: exigeConfirmacao ? true : null, obs })
+    });
+    if(!resp.ok){
+      const d = await resp.json();
+      alert(d.erro || 'Não consegui finalizar o pedido.');
+      return;
+    }
+  }catch(e){
+    alert('Não consegui falar com o servidor. Tente de novo.');
+    return;
+  }
+  const msg = 'Oi ' + nome + '! ✅ Seu pedido foi entregue agora. Muito obrigado pela preferência 😊 Qualquer dúvida, estamos à disposição!\n\nPedido #' + code;
+  window.open('https://wa.me/' + telefone + '?text=' + encodeURIComponent(msg), '_blank');
+
+  activeCode = null;
+  watchId = null;
+  pingCount = 0;
+  carregarRota(); // some da fila e passa a aparecer no histórico
+}
+
+carregarMotoboysSelect();
+</script>
+</body>
+</html>

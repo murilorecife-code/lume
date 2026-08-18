@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rastreio do seu pedido</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#ffffff; --ink:#1f2430; --muted:#6b7280;
+    --orange:#ff6b35; --green:#22c55e; --line:#e5e7eb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+  .topbar{background:var(--ink);color:#fff;padding:14px 20px;font-weight:700}
+  main{max-width:460px;margin:0 auto;padding:16px 16px 60px}
+  .card{background:var(--card);border-radius:16px;padding:18px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:14px}
+  #map{height:280px;border-radius:14px;margin-bottom:14px;background:#e5e7eb}
+  .eta{font-size:30px;font-weight:800;text-align:center;margin:4px 0 2px}
+  .eta-label{text-align:center;color:var(--muted);font-size:12px;margin-bottom:6px}
+  .muted{color:var(--muted);font-size:12px}
+  .steps{list-style:none;padding:0;margin:10px 0 0}
+  .steps li{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:13px;color:var(--muted)}
+  .steps li .dot{width:18px;height:18px;border-radius:50%;background:var(--line);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff}
+  .steps li.done{color:var(--ink);font-weight:600}
+  .steps li.done .dot{background:var(--green)}
+  .steps li.current .dot{background:var(--orange)}
+  .success{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;padding:18px;text-align:center}
+  .success .big{font-size:38px}
+  .empty{text-align:center;color:var(--muted);padding:30px 10px}
+  .empty .big{font-size:38px;margin-bottom:10px}
+  .warn{background:#fff7ed;border:1px solid #ffedd5;color:#9a3412;font-size:12px;padding:8px 10px;border-radius:10px;margin-bottom:10px}
+  .vipbanner{display:block;text-decoration:none;background:#fff7ed;border:1px solid #ffedd5;color:#9a3412;font-size:13px;font-weight:700;text-align:center;padding:10px 12px;border-radius:12px;margin-top:12px}
+  .vipbanner.destaque{background:linear-gradient(135deg,#ff6b35,#e2551f);color:#fff;border:none;padding:16px;font-size:14px;margin-top:16px;box-shadow:0 4px 10px rgba(255,107,53,.3)}
+  .vipbanner.destaque small{display:block;font-weight:500;opacity:.9;margin-top:3px;font-size:12px}
+</style>
+</head>
+<body>
+
+<div class="topbar">🏍️ Rastreio da sua entrega</div>
+
+<main>
+  <div class="card" id="statusCard">
+    <div class="empty">
+      <div class="big">📦</div>
+      Carregando pedido...
+    </div>
+  </div>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ---- ação de marketing: convite pro grupo VIP no WhatsApp ----
+// Troque o link abaixo pelo link de convite real do seu grupo/comunidade.
+// Enquanto estiver com o texto de exemplo, o banner fica escondido sozinho
+// (assim não corre o risco de mostrar um link quebrado pra cliente real).
+const LINK_GRUPO_VIP = 'https://chat.whatsapp.com/COLOQUE_SEU_LINK_AQUI';
+
+function bannerVip(destaque){
+  if(!LINK_GRUPO_VIP || LINK_GRUPO_VIP.includes('COLOQUE_SEU_LINK_AQUI')) return '';
+  if(destaque){
+    return `<a href="${LINK_GRUPO_VIP}" target="_blank" rel="noopener" class="vipbanner destaque">
+      🎁 Entre no grupo VIP
+      <small>e receba ações exclusivas em primeira mão</small>
+    </a>`;
+  }
+  return `<a href="${LINK_GRUPO_VIP}" target="_blank" rel="noopener" class="vipbanner">
+    🎁 Entre no grupo VIP e receba ações exclusivas
+  </a>`;
+}
+
+const params = new URLSearchParams(location.search);
+const code = params.get('code');
+const card = document.getElementById('statusCard');
+let map = null, motoMarker = null, clientMarker = null, trilhaLine = null, poller = null;
+let falhasSeguidas = 0;
+let ultimoDataOk = null;
+let trackingViewReady = false; // true depois que a caixinha do mapa foi montada uma vez
+
+// sempre que o card deixa de mostrar o mapa (tela de erro/vazia/entregue),
+// zera as referências do Leaflet — senão o próximo render tenta reaproveitar
+// um mapa preso a um <div> que já não existe mais na página.
+function resetarMapaRefs(){
+  map = null; motoMarker = null; clientMarker = null; trilhaLine = null;
+  trackingViewReady = false;
+}
+
+function iconEmoji(emoji, size){
+  return L.divIcon({ html: '<div style="font-size:'+size+'px;line-height:1;transform:translate(-50%,-70%)">'+emoji+'</div>', className: '', iconSize: [0,0] });
+}
+
+function fmtDuracao(seg){
+  if(seg == null) return null;
+  const m = Math.round(seg/60);
+  if(m < 1) return 'menos de 1 min';
+  if(m < 60) return m + ' min';
+  const h = Math.floor(m/60), r = m%60;
+  return h + 'h' + (r? ' '+r+'min':'');
+}
+
+async function carregar(){
+  if(!code){
+    card.innerHTML = '<div class="empty"><div class="big">⚠️</div>Link inválido — nenhum pedido informado.</div>';
+    resetarMapaRefs();
+    if(poller) clearInterval(poller);
+    return;
+  }
+  let resp, data;
+  try{
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try{
+      resp = await fetch('/api/pedidos/' + encodeURIComponent(code), { signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+    data = await resp.json();
+  }catch(e){
+    falhasSeguidas++;
+    // só mostra a tela de erro depois de algumas falhas seguidas (uma falha
+    // isolada é normal — servidor gratuito acordando, rede instável etc.)
+    // e, se já tínhamos um mapa funcionando, mantém ele na tela em vez de
+    // sumir com tudo — só tenta de novo silenciosamente no próximo ciclo.
+    if(falhasSeguidas >= 3 || !ultimoDataOk){
+      card.innerHTML = '<div class="empty"><div class="big">⚠️</div>Sem conexão com o servidor no momento. Tentando de novo automaticamente...</div>';
+      resetarMapaRefs();
+    }
+    return;
+  }
+  if(!resp.ok){
+    falhasSeguidas++;
+    card.innerHTML = '<div class="empty"><div class="big">⚠️</div>'+(data.erro||'Pedido não encontrado.')+'</div>';
+    resetarMapaRefs();
+    if(poller) clearInterval(poller);
+    return;
+  }
+  falhasSeguidas = 0;
+  ultimoDataOk = data;
+  render(data);
+}
+
+function render(data){
+  if(data.delivered){
+    if(poller) clearInterval(poller);
+    resetarMapaRefs();
+    card.innerHTML = `
+      <div class="success">
+        <div class="big">✅</div>
+        <h3>Pedido entregue!</h3>
+        <p class="muted">Obrigado pela preferência, ${data.nome}. Até a próxima! 🏍️</p>
+      </div>
+      <ul class="steps">
+        <li class="done"><span class="dot">✓</span> Pedido confirmado</li>
+        <li class="done"><span class="dot">✓</span> Saiu para entrega</li>
+        <li class="done"><span class="dot">✓</span> Entregue</li>
+      </ul>
+      ${bannerVip(true)}`;
+    return;
+  }
+
+  if(!data.ultimaPos){
+    resetarMapaRefs();
+    card.innerHTML = `
+      <div class="empty">
+        <div class="big">📦</div>
+        Olá, <b>${data.nome}</b>! Aguardando o motoboy ativar o GPS...
+      </div>
+      <p class="muted" style="text-align:center">📍 ${data.enderecoTexto}</p>
+      <p class="muted" style="text-align:center">Isso pode demorar um pouco mais se ele estiver em ambiente fechado.</p>
+      ${bannerVip()}`;
+    return;
+  }
+
+  // monta a caixinha de ETA (isso pode mudar a cada consulta)
+  let etaHtml = '<div class="eta-label">calculando tempo estimado...</div>';
+  if(data.rota){
+    etaHtml = `<div class="eta">⏱️ ${fmtDuracao(data.rota.duracaoSegundos)}</div>
+      <div class="eta-label">~${(data.rota.distanciaMetros/1000).toFixed(1)} km até você</div>`;
+  } else if(!data.clientCoords){
+    etaHtml = '<div class="warn">Não consegui localizar seu endereço no mapa automaticamente, mas a posição do motoboy está sendo exibida em tempo real.</div>';
+  }
+
+  // IMPORTANTE: só desenha a caixinha (e o <div id="map">) UMA VEZ. Nas
+  // atualizações seguintes, só mexemos no conteúdo de dentro dela (texto do
+  // ETA e posição dos marcadores) — nunca recriamos o card.innerHTML aqui,
+  // senão o mapa perde a referência ao elemento e fica cinza/vazio.
+  if(!trackingViewReady){
+    card.innerHTML = `
+      <p style="margin:0 0 2px;font-size:15px">Olá, <b>${data.nome}</b> 👋</p>
+      <p class="muted" style="margin:0 0 10px">Pedido #${data.code} está a caminho de ${data.enderecoTexto}${data.complemento? ' ('+data.complemento+')':''}.</p>
+      <div id="etaBox"></div>
+      <div id="map"></div>
+      <ul class="steps">
+        <li class="done"><span class="dot">✓</span> Pedido confirmado</li>
+        <li class="current"><span class="dot">●</span> A caminho (GPS ao vivo)</li>
+        <li><span class="dot"></span> Entregue</li>
+      </ul>
+      ${bannerVip()}`;
+
+    map = L.map('map');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap',
+      maxZoom: 19
+    }).addTo(map);
+
+    trackingViewReady = true;
+  }
+
+  const etaBox = document.getElementById('etaBox');
+  if(etaBox) etaBox.innerHTML = etaHtml;
+
+  const motoLatLng = [data.ultimaPos.lat, data.ultimaPos.lng];
+  const primeiraPosicao = !motoMarker;
+  if(!motoMarker){
+    motoMarker = L.marker(motoLatLng, { icon: iconEmoji('🏍️', 26) }).addTo(map);
+  } else {
+    motoMarker.setLatLng(motoLatLng);
+  }
+
+  if(data.trilha && data.trilha.length > 1){
+    const pontos = data.trilha.map(p => [p.lat, p.lng]);
+    if(!trilhaLine){
+      trilhaLine = L.polyline(pontos, { color: '#ff6b35', weight: 3, opacity: 0.6 }).addTo(map);
+    } else {
+      trilhaLine.setLatLngs(pontos);
+    }
+  }
+
+  const bounds = [motoLatLng];
+  if(data.clientCoords){
+    const clientLatLng = [data.clientCoords.lat, data.clientCoords.lng];
+    if(!clientMarker){
+      clientMarker = L.marker(clientLatLng, { icon: iconEmoji('🏠', 24) }).addTo(map);
+    } else {
+      clientMarker.setLatLng(clientLatLng);
+    }
+    bounds.push(clientLatLng);
+  }
+
+  // só re-enquadra o mapa automaticamente na primeira posição recebida —
+  // depois disso deixa a cliente livre pra arrastar/dar zoom sem o mapa
+  // ficar "puxando" a visão de volta a cada atualização.
+  if(primeiraPosicao){
+    if(bounds.length > 1){
+      map.fitBounds(bounds, { padding: [30,30] });
+    } else {
+      map.setView(motoLatLng, 15);
+    }
+  }
+  map.invalidateSize();
+}
+
+carregar();
+poller = setInterval(carregar, 3000);
+</script>
+</body>
+</html>

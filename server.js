@@ -458,31 +458,42 @@ app.post('/api/pedidos/:code/entregar', assincrona(async (req, res) => {
   res.json({ ok: true });
 }));
 
-async function iniciar() {
-  await initSchema();
+// status do banco, pra dar pra checar rapidinho sem precisar ficar catando
+// log no Render: abre https://SEU-SITE.onrender.com/api/status no navegador.
+let dbStatus = { conectado: false, erro: null, verificadoEm: null };
+app.get('/api/status', (req, res) => res.json(dbStatus));
 
-  // limpa pedidos com mais de 40 dias assim que o servidor sobe, e depois
-  // repete a cada 6 horas (não precisa ser mais frequente que isso).
-  limparPedidosAntigos().then(n => {
-    if (n) console.log(`🧹 ${n} pedido(s) com mais de ${RETENCAO_PEDIDOS_DIAS} dias removido(s).`);
-  }).catch(e => console.error('Falha na limpeza inicial de pedidos antigos:', e.message));
-  setInterval(() => {
-    limparPedidosAntigos().catch(e => console.error('Falha na limpeza periódica de pedidos antigos:', e.message));
-  }, 6 * 60 * 60 * 1000);
+async function conectarBanco(tentativa = 1) {
+  try {
+    await initSchema();
+    dbStatus = { conectado: true, erro: null, verificadoEm: new Date().toISOString() };
+    console.log('✅ Banco de dados conectado e schema OK (tentativa ' + tentativa + ').');
 
-  app.listen(PORT, () => {
-    console.log('Servidor de rastreio rodando na porta ' + PORT);
-  });
+    limparPedidosAntigos().then(n => {
+      if (n) console.log(`🧹 ${n} pedido(s) com mais de ${RETENCAO_PEDIDOS_DIAS} dias removido(s).`);
+    }).catch(e => console.error('Falha na limpeza inicial de pedidos antigos:', e.message));
+    setInterval(() => {
+      limparPedidosAntigos().catch(e => console.error('Falha na limpeza periódica de pedidos antigos:', e.message));
+    }, 6 * 60 * 60 * 1000);
+  } catch (e) {
+    const msg = e && e.stack ? e.stack : String(e);
+    dbStatus = { conectado: false, erro: (e && e.message) || String(e), verificadoEm: new Date().toISOString() };
+    process.stderr.write('❌ ERRO ao conectar no banco de dados (tentativa ' + tentativa + '): ' + msg + '\n');
+    process.stderr.write('   O servidor vai continuar no ar (a página abre), mas nada vai salvar até isso ser corrigido.\n');
+    process.stderr.write('   Confira o DATABASE_URL em Render > Environment. Tentando de novo em 15s...\n');
+    setTimeout(() => conectarBanco(tentativa + 1), 15000);
+  }
 }
 
-iniciar().catch(e => {
-  // escreve direto no stderr (síncrono) e só derruba o processo depois de um
-  // pequeno atraso — sem isso, o log podia se perder porque process.exit()
-  // encerra o processo antes do console.error terminar de ser escrito.
-  try {
-    process.stderr.write('Falha ao iniciar o servidor (verifique DATABASE_URL): ' + (e && e.stack ? e.stack : e) + '\n');
-  } catch (_) {}
-  setTimeout(() => process.exit(1), 500);
+// liga a porta IMEDIATAMENTE — assim o Render sempre marca o serviço como
+// "Live" e nunca mais mata o processo por causa de erro de banco. A conexão
+// com o banco acontece depois, em paralelo, e fica tentando de novo sozinha
+// se falhar (é comum a primeira tentativa falhar por causa de senha errada
+// ou link mal configurado — agora dá pra ver o erro real no /api/status e
+// nos Logs, em vez do processo simplesmente morrer sem explicação).
+app.listen(PORT, () => {
+  console.log('🚀 Servidor de rastreio rodando na porta ' + PORT + ' (conectando no banco agora...)');
+  conectarBanco();
 });
 
 process.on('unhandledRejection', (e) => {

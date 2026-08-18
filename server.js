@@ -12,10 +12,23 @@
 //   POST /api/pedidos/:code/entregar      -> marca pedido como entregue
 //   POST /api/relatorio                   -> totais de faturamento (exige senha de admin ou de um motoboy)
 
-const express = require('express');
-const path = require('path');
-const bcrypt = require('bcryptjs');
-const { pool, initSchema, limparPedidosAntigos, RETENCAO_PEDIDOS_DIAS } = require('./db');
+// primeiríssima linha executada — se isso não aparecer nos logs, o problema
+// nem chegou a rodar código nosso (é algo antes disso, ex: comando de start).
+process.stdout.write('>>> server.js começou a rodar em ' + new Date().toISOString() + '\n');
+
+let express, path, bcrypt, db;
+try {
+  express = require('express');
+  path = require('path');
+  bcrypt = require('bcryptjs');
+  db = require('./db');
+  process.stdout.write('>>> dependências carregadas com sucesso\n');
+} catch (e) {
+  process.stderr.write('>>> ERRO AO CARREGAR DEPENDÊNCIAS: ' + (e && e.stack ? e.stack : e) + '\n');
+  setTimeout(() => process.exit(1), 500);
+  throw e;
+}
+const { pool, initSchema, limparPedidosAntigos, RETENCAO_PEDIDOS_DIAS } = db;
 
 const app = express();
 app.use(express.json());
